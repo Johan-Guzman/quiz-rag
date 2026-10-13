@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz · Alucinaciones en LLM y límites de RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caladea:wght@400;700&family=Carlito:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F8F4EA;--card:#FFFFFF;--ink:#2F3237;--head:#1C2B4A;--accent:#7A1E2C;--mute:#6B6F76;
+  --line:#D8C8AC;--ok:#5F7C6A;--okT:#DDE6DF;--bad:#7A1E2C;--badT:#EBD6D8;--panel:#EFE6D3;
+  --btn:#1C2B4A;--btnInk:#F8F4EA;--navy:#1C2B4A;--navy2:#2A3753;
+  --onNavy:#F8F4EA;--tan:#D8C8AC;--tanHead:#D9C8A9;--tanInk:#1C2B4A;
+  --serif:'Caladea',Cambria,Georgia,serif;--sans:'Carlito',Calibri,'Segoe UI',Arial,sans-serif;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141A2B;--card:#1D2540;--ink:#E8E6E0;--head:#D5DCEF;--accent:#E3939E;--mute:#A4A9B5;
+  --line:#3A4466;--ok:#8DB59B;--okT:#223A2E;--bad:#E3939E;--badT:#41222B;--panel:#2A3150;
+  --btn:#D8C8AC;--btnInk:#1C2B4A;--navy:#0D1424;--navy2:#1A2440;}}
+:root[data-theme="dark"]{
+  --bg:#141A2B;--card:#1D2540;--ink:#E8E6E0;--head:#D5DCEF;--accent:#E3939E;--mute:#A4A9B5;
+  --line:#3A4466;--ok:#8DB59B;--okT:#223A2E;--bad:#E3939E;--badT:#41222B;--panel:#2A3150;
+  --btn:#D8C8AC;--btnInk:#1C2B4A;--navy:#0D1424;--navy2:#1A2440;}
+
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:18px/1.5 var(--sans);transition:background .5s}
+body[data-mode="end"]{background:var(--navy)}
+h1,h2,h3{font-family:var(--serif);color:var(--head);line-height:1.15;margin:0}
+.hide{display:none!important}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0}
+.icon{display:block;color:var(--head)}
+
+/* ---------- estructura ---------- */
+.shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(310px,36%);min-height:100vh}
+.main{display:flex;flex-direction:column;padding:clamp(24px,5vw,56px) clamp(18px,5vw,64px) 22px;max-width:880px;width:100%;margin:0 auto}
+.foot{margin-top:auto;padding-top:28px;font-size:14px;color:var(--mute);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* ---------- panel ficha ---------- */
+.aside{background:var(--navy);display:flex;align-items:center;justify-content:center;padding:clamp(20px,4vw,44px)}
+.ficha{background:var(--card);width:100%;max-width:380px;border:1px solid var(--tan);box-shadow:0 18px 40px rgba(0,0,0,.28)}
+.ficha-h{background:var(--tanHead);color:var(--tanInk);padding:16px 22px 14px}
+.ficha-h .k{font-size:13px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}
+.ficha-h .s{font-size:14px;margin-top:2px;opacity:.85}
+.steps{list-style:none;margin:0;padding:24px 22px 8px}
+.step{display:grid;grid-template-columns:38px 1fr;column-gap:16px;position:relative;padding-bottom:22px}
+.step:last-child{padding-bottom:12px}
+.step::after{content:"";position:absolute;left:18px;top:38px;bottom:0;width:2px;background:var(--line)}
+.step:last-child::after{display:none}
+.dotn{width:38px;height:38px;border-radius:50%;background:var(--head);color:var(--card);display:grid;place-items:center;font-weight:700;font-size:16px;
+  transition:background .35s,transform .35s}
+.step .t{font-family:var(--serif);font-weight:700;font-size:18px;color:var(--head);line-height:1.2;padding-top:1px}
+.step .d{font-size:14.5px;color:var(--mute);line-height:1.3;margin-top:2px;transition:color .3s}
+.step.pend .dotn{background:transparent;border:2px solid var(--line);color:var(--mute)}
+.step.now .dotn{background:var(--head);color:var(--card);animation:pulse 1.8s ease-out infinite}
+.step.ok .dotn{background:var(--ok);color:#fff;animation:pop .45s cubic-bezier(.3,1.6,.5,1)}
+.step.bad .dotn{background:var(--bad);color:#fff;animation:pop .45s cubic-bezier(.3,1.6,.5,1)}
+.step.ok .d{color:var(--ok);font-weight:700}
+.step.bad .d{color:var(--bad);font-weight:700}
+.ficha-f{padding:6px 22px 20px}
+.ficha-f .note{font-size:13.5px;font-style:italic;color:var(--mute);margin:14px 0 0}
+.tally{font-size:15px;color:var(--head);border-top:1px solid var(--line);padding-top:12px;margin-top:6px;display:flex;justify-content:space-between}
+.tally b{font-family:var(--serif);font-size:20px}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(122,30,44,.45)}80%,100%{box-shadow:0 0 0 12px rgba(122,30,44,0)}}
+@keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+
+/* ---------- sello ---------- */
+.stamp{display:inline-block;font-weight:700;font-size:15px;letter-spacing:.22em;text-transform:uppercase;
+  border:2.5px solid currentColor;padding:7px 16px;transform:rotate(-3deg);background:transparent;white-space:nowrap}
+.stamp.pend{color:var(--accent)}
+.stamp.ok{color:var(--ok)}
+.stamp.bad{color:var(--bad)}
+.stamp.drop{animation:stampIn .5s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes stampIn{0%{opacity:0;transform:scale(2.4) rotate(-14deg)}55%{opacity:1;transform:scale(.94) rotate(-4deg)}100%{opacity:1;transform:scale(1) rotate(-3deg)}}
+
+/* ---------- portada ---------- */
+.cover{margin:auto 0;padding:24px 0}
+.cover .icon{width:76px;margin-bottom:28px}
+.cover h1{font-size:clamp(36px,6.4vw,62px);font-weight:700;margin-bottom:22px}
+.cover .sub{font-size:clamp(19px,2.4vw,23px);font-style:italic;color:var(--mute);max-width:36em;margin:0 0 30px}
+.cover .who{font-weight:700;color:var(--head);margin:0;font-size:19px}
+.cover .where{color:var(--mute);margin:2px 0 0;font-size:16px}
+.cover .hint{font-size:15px;color:var(--mute);margin:30px 0 0;max-width:34em}
+
+/* ---------- botones ---------- */
+.btn{font:inherit;font-weight:700;letter-spacing:.04em;background:var(--btn);color:var(--btnInk);border:0;border-radius:2px;
+  padding:14px 30px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 6px 0 rgba(122,30,44,.9)}
+.btn:active{transform:translateY(0);box-shadow:none}
+.btn:focus-visible,.opt:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+
+/* ---------- pregunta ---------- */
+.gtop{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.gtop .icon{width:40px;flex:none}
+.qwrap{margin:0 0 6px}
+.qcard{background:var(--card);border:1px solid var(--line);padding:clamp(20px,3.4vw,34px)}
+.qcard.enter{animation:enter .35s ease both}
+@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.src{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);
+  border-left:3px solid var(--accent);padding-left:10px;margin-bottom:14px}
+.qcard h2{font-size:clamp(22px,3.4vw,31px);font-weight:700}
+.opts{display:grid;gap:11px;margin:24px 0 0}
+.opt{display:grid;grid-template-columns:36px 1fr;gap:14px;align-items:start;text-align:left;width:100%;font:inherit;color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:2px;padding:13px 15px;cursor:pointer;
+  transition:transform .15s,border-color .15s,background .25s,opacity .25s}
+.opt:hover:not(:disabled){border-color:var(--head);transform:translateX(5px)}
+.opt .l{width:36px;height:30px;background:var(--head);color:var(--card);font-weight:700;font-size:15px;letter-spacing:.06em;display:grid;place-items:center;transition:background .25s}
+.opt:disabled{cursor:default}
+.opt.ok{background:var(--okT);border-color:var(--ok)} .opt.ok .l{background:var(--ok);color:#fff}
+.opt.bad{background:var(--badT);border-color:var(--bad);animation:nudge .4s} .opt.bad .l{background:var(--bad);color:#fff}
+.opt.dim{opacity:.5}
+@keyframes nudge{20%{transform:translateX(-6px)}50%{transform:translateX(5px)}80%{transform:translateX(-2px)}}
+
+/* ---------- retroalimentación ---------- */
+.fb{position:relative;margin-top:34px;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--ok);padding:22px 20px 18px;animation:enter .35s ease both}
+.fb.bad{border-left-color:var(--bad)}
+.fb .stamp{position:absolute;top:-19px;right:14px;background:var(--bg);font-size:14px}
+.fb .v{font-family:var(--serif);font-weight:700;font-size:21px;color:var(--ok);margin:0 0 6px;padding-right:150px}
+.fb.bad .v{color:var(--bad)}
+.fb p{margin:0;font-size:17px}
+#next{margin-top:20px}
+
+/* ---------- resultado ---------- */
+.end{background:var(--navy);color:var(--onNavy);min-height:100vh;display:flex;flex-direction:column;padding:clamp(24px,5vw,56px) clamp(18px,5vw,72px) 22px}
+.end-in{width:100%;max-width:1080px;margin:auto}
+.end .eyebrow{color:var(--tan)}
+.end .icon{color:var(--onNavy);width:64px;margin:0 0 18px}
+.end-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:clamp(24px,5vw,60px);align-items:start}
+.score{font-family:var(--serif);font-weight:700;font-size:clamp(84px,14vw,136px);line-height:1;color:var(--onNavy);margin:6px 0 0}
+.score small{font-size:.3em;color:var(--tan);font-weight:400}
+.end h2{color:var(--onNavy);font-size:clamp(25px,3.6vw,36px);margin:14px 0 24px}
+.end .stamp{color:var(--tan);font-size:15px}
+.end .stamp.top{color:#9FC4AB}
+.end .btn{background:var(--tan);color:var(--tanInk);margin-top:32px}
+.end .btn:hover{box-shadow:0 6px 0 rgba(0,0,0,.35)}
+.rev-t{font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--tan);margin:0 0 12px}
+.rev{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.rev li{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start;background:var(--navy2);padding:12px 14px;font-size:16px;line-height:1.35;
+  opacity:0;animation:enter .4s ease forwards}
+.rev .m{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff;margin-top:1px}
+.rev .m.ok{background:#5F7C6A} .rev .m.bad{background:#B0394B}
+.rev .sl{display:block;font-size:13px;color:var(--tan);margin-top:3px}
+.chain{display:flex;align-items:stretch;gap:0;margin-top:clamp(32px,5vw,56px);flex-wrap:wrap}
+.chain .c{flex:1 1 130px;border:1px solid var(--tan);padding:12px 10px;text-align:center;font-weight:700;font-size:15px;color:var(--onNavy)}
+.chain .a{flex:none;align-self:center;width:26px;text-align:center;color:var(--tan);font-size:18px}
+.chain .c.last{background:var(--tan);color:var(--tanInk)}
+.end .foot{color:var(--tan);opacity:.8}
+
+/* ---------- responsivo ---------- */
+@media (max-width:859px){
+  .shell{grid-template-columns:1fr}
+  .shell.m-game .aside{order:-1;padding:14px 14px 0;background:var(--bg)}
+  .shell.m-game .ficha{max-width:none;box-shadow:none;border-color:var(--line)}
+  .shell.m-game .ficha-h .s,.shell.m-game .ficha-f .note,.shell.m-game .step .t,.shell.m-game .step .d{display:none}
+  .shell.m-game .ficha-h{padding:10px 16px 8px}
+  .shell.m-game .steps{display:flex;padding:14px 12px 4px}
+  .shell.m-game .step{flex:1;display:flex;justify-content:center;padding:0}
+  .shell.m-game .step::after{left:calc(50% + 21px);right:calc(-50% + 21px);top:18px;bottom:auto;width:auto;height:2px}
+  .shell.m-game .step:last-child::after{display:none}
+  .shell.m-game .ficha-f{padding:0 16px 12px}
+  .end-grid{grid-template-columns:1fr}
+  .fb .v{padding-right:0;margin-top:14px}
+  .fb .stamp{top:-17px}
+  .chain .a{display:none}
+  .chain .c{flex-basis:100%;margin-top:-1px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.rev li{opacity:1}}
+</style>
+</head>
+<body data-mode="intro">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="scale" viewBox="0 0 64 48">
+    <circle cx="32" cy="5" r="3.5" fill="currentColor"/>
+    <path d="M32 8v32M8 13h48" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <path d="M13 13 3 30M13 13l10 17M51 13 41 30M51 13l10 17" stroke="currentColor" stroke-width="2" fill="none"/>
+    <path d="M1 30h24c0 6-5 9-12 9S1 36 1 30ZM39 30h24c0 6-5 9-12 9s-12-3-12-9Z" fill="currentColor"/>
+    <path d="M18 45h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<div class="shell m-intro" id="shell">
+  <main class="main">
+    <!-- Portada -->
+    <section id="intro" class="cover">
+      <svg class="icon" aria-hidden="true"><use href="#scale"/></svg>
+      <h1>¿Qué tanto se llevaron de la exposición?</h1>
+      <p class="sub">Seis preguntas de opción única sobre el mecanismo de RAG, la evidencia de los estudios y nuestra propuesta. Cada respuesta se contrasta y se sella.</p>
+      <p class="who">Adri Martínez · Johan Guzmán</p>
+      <p class="where">Universidad ICESI · Octubre de 2026</p>
+      <p class="hint">Respondan tocando la opción o con las teclas 1 a 4; Enter pasa a la siguiente. Las respuestas se barajan en cada intento.</p>
+      <button class="btn" id="start" style="margin-top:26px">Empezar el quiz</button>
+    </section>
+
+    <!-- Juego -->
+    <section id="game" class="hide">
+      <div class="gtop">
+        <svg class="icon" aria-hidden="true"><use href="#scale"/></svg>
+        <p class="eyebrow" id="count"></p>
+      </div>
+      <div class="qcard" id="qcard">
+        <span class="src" id="src"></span>
+        <h2 id="q"></h2>
+        <div class="opts" id="opts" role="group" aria-label="Opciones de respuesta"></div>
+      </div>
+      <div id="fb" aria-live="polite"></div>
+      <button class="btn hide" id="next">Siguiente</button>
+    </section>
+
+    <div class="foot"><span>Alucinaciones en LLM y límites de RAG · Universidad ICESI · Octubre de 2026</span><span id="pg"></span></div>
+  </main>
+
+  <aside class="aside" id="aside">
+    <div class="ficha">
+      <div class="ficha-h"><div class="k">Ficha de verificación</div><div class="s" id="fs"></div></div>
+      <ol class="steps" id="steps"></ol>
+      <div class="ficha-f" id="ff"></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Resultado -->
+<section class="end hide" id="end">
+  <div class="end-in">
+    <div class="end-grid">
+      <div>
+        <p class="eyebrow">Resultado</p>
+        <svg class="icon" style="margin-top:18px" aria-hidden="true"><use href="#scale"/></svg>
+        <div class="score"><span id="sc">0</span><small> / <span id="tot"></span></small></div>
+        <h2 id="msg"></h2>
+        <span class="stamp drop" id="fstamp"></span><br>
+        <button class="btn" id="again">Intentar de nuevo</button>
+      </div>
+      <div>
+        <p class="rev-t">Contraste pregunta por pregunta</p>
+        <ul class="rev" id="rev"></ul>
+      </div>
+    </div>
+    <div class="chain" aria-hidden="true">
+      <div class="c">Afirmación</div><div class="a">→</div>
+      <div class="c">Evidencia recuperada</div><div class="a">→</div>
+      <div class="c">Contraste documental</div><div class="a">→</div>
+      <div class="c">Verificación</div><div class="a">→</div>
+      <div class="c last">Decisión</div>
+    </div>
+  </div>
+  <div class="foot"><span>Alucinaciones en LLM y límites de RAG · Universidad ICESI · Octubre de 2026</span></div>
+</section>
+
+<script>
+const BANK = [
+  { src: 'Diapositivas 7 y 10', q: 'Según el argumento central de la exposición, ¿qué cambia RAG respecto de un LLM sin recuperación?',
+    o: ['Restringe la generación al conjunto de respuestas respaldadas por los documentos recuperados.',
+        'Cambia la distribución de la que se genera la respuesta, pero deja probabilidad positiva fuera de las respuestas respaldadas.',
+        'Elimina la memoria paramétrica del modelo mientras responde.',
+        'Reemplaza la softmax por una regla que da probabilidad cero a lo que no aparece en los documentos.'],
+    a: 1, e: 'RAG añade un contexto z al condicionamiento, pero la softmax sigue asignando probabilidad positiva a todo token (Ecuación 14) y los pesos θ siguen activos. Por eso cambia de qué distribución se genera la respuesta, no cuáles respuestas están permitidas.' },
+  { src: 'Diapositiva 15', q: 'Magesh et al. (2025) hallaron que cada herramienta jurídica con RAG alucinó entre 17 % y 33 % de las consultas. ¿Cuál es la lectura correcta de esa cifra?',
+    o: ['Es la tasa de alucinación que tendrá cualquier sistema RAG en derecho.',
+        'Muestra que RAG alucina más que un LLM de propósito general como GPT-4.',
+        'Es lo que hicieron esas tres herramientas en un conjunto de 202 consultas diseñado para ser desafiante; no es una tasa de RAG en general.',
+        'Es el porcentaje de consultas que las herramientas se negaron a responder.'],
+    a: 2, e: 'Las tres herramientas alucinaron menos que GPT-4, y la cifra viene de un conjunto de 202 consultas armado para ser difícil. No es una estimación de la frecuencia real, y la tasa de un sistema depende del dominio, el corpus, el recuperador, el generador y la tarea.' },
+  { src: 'Diapositiva 14', q: 'En Shuster et al. (2021), la recuperación bajó la alucinación de 68,2 % a entre 7,9 % y 17,0 % con 5 documentos. ¿Qué pasó al pasar a 25 documentos?',
+    o: ['Disminuyó todavía más, porque había más evidencia disponible.',
+        'Aumentó (por ejemplo, FiD-RAG de 7,9 % a 19,8 %): más contexto no siempre ayuda.',
+        'No cambió de forma apreciable.',
+        'Desapareció en los modelos con RAG-Token.'],
+    a: 1, e: 'Con 25 documentos subió: RAG-Token pasó de 17,0 % a 21,5 % y FiD-RAG de 7,9 % a 19,8 %. Es el compromiso entre contexto y ruido. Eso sí, el estudio es acotado: 100 respuestas por modelo, modelos de 2021 y un solo dominio.' },
+  { src: 'Diapositivas 5 y 11', q: 'Un documento recuperado trae una cifra equivocada y el modelo la repite tal cual en su respuesta. ¿Cómo se describe esa respuesta?',
+    o: ['Infiel al contexto y falsa.',
+        'Factual, pero con una atribución incorrecta.',
+        'Fiel y factual: no hay ningún problema.',
+        'Fiel al contexto, pero no factual.'],
+    a: 3, e: 'La fidelidad se mide contra el contexto entregado y la factualidad contra el mundo. RAG actúa directamente sobre la fidelidad y solo de forma indirecta sobre la factualidad, porque además el contexto tiene que ser correcto.' },
+  { src: 'Diapositivas 12, 16 y 17', q: 'Una herramienta jurídica responde con la cita de un caso real y vigente, pero el texto de ese caso describe otra cosa. ¿Qué punto de fallo del pipeline es?',
+    o: ['F1 · Recuperación: la evidencia no entró entre los fragmentos recuperados.',
+        'F2 · Contexto: el ruido desplazó la evidencia.',
+        'F5 · Brecha de evidencia: el corpus no tiene la información.',
+        'F4 · Atribución: la cita no respalda la afirmación que acompaña.'],
+    a: 3, e: 'Una cita es una afirmación más del modelo y puede alucinarse como cualquier otra: que esté presente no prueba que respalde lo dicho. Fue una de las lecciones del caso jurídico y de los resultados de ALCE y Liu et al.' },
+  { src: 'Diapositivas 12 y 24', q: 'La propuesta descompone el riesgo como P(H) = P(H | ¬E)·P(¬E) + P(H | E)·P(E). Mejorar solo el recuperador reduce P(¬E) pero no cambia P(H | E). ¿Qué capa de la arquitectura propuesta actúa sobre P(H | E)?',
+    o: ['Corpus curado y versionado, con metadatos de vigencia y autoridad.',
+        'Recuperación híbrida con re-ranking y evaluación de la evidencia.',
+        'Generación con abstención cuando la evidencia no alcanza.',
+        'Verificación de afirmaciones contra su cita con un verificador independiente del generador.'],
+    a: 3, e: 'P(H | E) es la alucinación que persiste aun con buena evidencia (F3 y F4), y la verificación de afirmaciones es la capa que la ataca. Recuerden que la arquitectura es una propuesta nuestra: no está evaluada como sistema integrado.' },
+];
+
+const $ = (id) => document.getElementById(id);
+const shuffle = (arr) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const MSG = [
+  [1.0, 'Impecable: explicarían la exposición mejor que nosotros.', 'Soporte completo', true],
+  [0.67, 'Muy bien: tienen clara la idea central y los matices principales.', 'Verificado', true],
+  [0.34, 'Van por buen camino. Vale la pena repasar las explicaciones de lo que falló.', 'En revisión', false],
+  [0, 'Hay tema para repasar, y para eso están las explicaciones de cada pregunta.', 'Pendiente de verificación', false],
+];
+const INTRO_STEPS = [
+  ['Afirmación', 'El LLM produce un enunciado plausible'],
+  ['Evidencia recuperada', 'RAG aporta documentos del corpus'],
+  ['Contraste documental', '¿El texto respalda el enunciado?'],
+  ['Verificación', 'Soporte comprobado afirmación por afirmación'],
+  ['Decisión', 'Confiar, abstenerse o escalar a revisión'],
+];
+let qs = [], i = 0, score = 0, results = [], locked = false, mode = 'intro';
+
+function setMode(m) {
+  mode = m;
+  document.body.dataset.mode = m;
+  $('shell').className = 'shell m-' + (m === 'game' ? 'game' : 'intro');
+  $('shell').classList.toggle('hide', m === 'end');
+  $('end').classList.toggle('hide', m !== 'end');
+  $('intro').classList.toggle('hide', m !== 'intro');
+  $('game').classList.toggle('hide', m !== 'game');
+  renderFicha();
+}
+
+function renderFicha() {
+  const steps = $('steps'), ff = $('ff');
+  steps.innerHTML = ''; ff.innerHTML = '';
+  if (mode === 'intro') {
+    $('fs').textContent = 'Expediente ilustrativo · Folio 001';
+    INTRO_STEPS.forEach(([t, d], k) => {
+      const li = el('li', 'step');
+      li.appendChild(el('div', 'dotn', String(k + 1)));
+      const w = el('div'); w.appendChild(el('div', 't', t)); w.appendChild(el('div', 'd', d));
+      li.appendChild(w); steps.appendChild(li);
+    });
+    ff.appendChild(el('span', 'stamp pend', 'Pendiente de verificación'));
+    ff.appendChild(el('p', 'note', 'Sellos y fichas: recursos gráficos ilustrativos, no resultados.'));
+    $('pg').textContent = '';
+    return;
+  }
+  $('fs').textContent = 'Quiz · Folio 001';
+  qs.forEach((x, k) => {
+    const done = results[k] !== undefined;
+    const state = done ? (results[k] ? 'ok' : 'bad') : k === i ? 'now' : 'pend';
+    const li = el('li', 'step ' + state);
+    li.appendChild(el('div', 'dotn', done ? (results[k] ? '✓' : '✗') : String(k + 1)));
+    const w = el('div');
+    w.appendChild(el('div', 't', 'Pregunta ' + (k + 1)));
+    w.appendChild(el('div', 'd', done ? (results[k] ? 'Respaldada' : 'Sin soporte') : k === i ? 'En contraste' : 'Pendiente'));
+    li.appendChild(w); steps.appendChild(li);
+  });
+  const t = el('div', 'tally');
+  t.appendChild(el('span', null, 'Respaldadas'));
+  const b = el('b', null, `${score} de ${qs.length}`);
+  t.appendChild(b); ff.appendChild(t);
+  ff.appendChild(el('p', 'note', 'Cada respuesta se contrasta con la exposición y se sella.'));
+  $('pg').textContent = `${i + 1} / ${qs.length}`;
+}
+
+function start() {
+  qs = shuffle(BANK).map((x) => {
+    const idx = shuffle(x.o.map((_, k) => k));
+    return { ...x, o: idx.map((k) => x.o[k]), a: idx.indexOf(x.a) };
+  });
+  i = 0; score = 0; results = [];
+  setMode('game');
+  show();
+}
+
+function show() {
+  locked = false;
+  const x = qs[i];
+  $('count').textContent = `Pregunta ${i + 1} de ${qs.length}`;
+  $('src').textContent = x.src;
+  $('q').textContent = x.q;
+  $('fb').innerHTML = ''; $('next').classList.add('hide');
+  const card = $('qcard'); card.classList.remove('enter'); void card.offsetWidth; card.classList.add('enter');
+  const box = $('opts'); box.innerHTML = '';
+  x.o.forEach((t, k) => {
+    const b = document.createElement('button');
+    b.className = 'opt'; b.type = 'button';
+    b.appendChild(el('span', 'l', 'ABCD'[k]));
+    b.appendChild(el('span', 't', t));
+    b.addEventListener('click', () => answer(k));
+    box.appendChild(b);
+  });
+  $('next').textContent = i === qs.length - 1 ? 'Ver resultado' : 'Siguiente';
+  renderFicha();
+  if (i > 0) window.scrollTo(0, 0);
+}
+
+function answer(k) {
+  if (locked) return; locked = true;
+  const x = qs[i], right = k === x.a;
+  results[i] = right; if (right) score++;
+  [...$('opts').children].forEach((b, n) => {
+    b.disabled = true;
+    if (n === x.a) b.classList.add('ok'); else if (n === k) b.classList.add('bad'); else b.classList.add('dim');
+  });
+  const fb = el('div', 'fb ' + (right ? 'ok' : 'bad'));
+  fb.appendChild(el('span', 'stamp drop ' + (right ? 'ok' : 'bad'), right ? 'Verificado' : 'Sin soporte'));
+  fb.appendChild(el('h3', 'v', right ? 'Correcto' : `No exactamente: la respuesta era la ${'ABCD'[x.a]}`));
+  fb.appendChild(el('p', null, x.e));
+  $('fb').innerHTML = ''; $('fb').appendChild(fb);
+  $('next').classList.remove('hide');
+  renderFicha();
+  $('next').focus({ preventScroll: true });
+  fb.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+}
+
+function countUp(node, to) {
+  if (reduce || to === 0) { node.textContent = to; return; }
+  const t0 = performance.now(), dur = 800;
+  const tick = (t) => {
+    const p = Math.min(1, (t - t0) / dur);
+    node.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function finish() {
+  setMode('end');
+  $('tot').textContent = qs.length;
+  countUp($('sc'), score);
+  const [, text, label, top] = MSG.find(([min]) => score / qs.length >= min);
+  $('msg').textContent = text;
+  const st = $('fstamp'); st.textContent = label; st.className = 'stamp drop' + (top ? ' top' : '');
+  $('rev').innerHTML = '';
+  qs.forEach((x, k) => {
+    const li = el('li');
+    li.style.animationDelay = (0.15 + k * 0.08) + 's';
+    li.appendChild(el('span', 'm ' + (results[k] ? 'ok' : 'bad'), results[k] ? '✓' : '✗'));
+    const w = el('span');
+    w.appendChild(document.createTextNode(x.q.length > 120 ? x.q.slice(0, 117) + '…' : x.q));
+    w.appendChild(el('span', 'sl', x.src));
+    li.appendChild(w);
+    $('rev').appendChild(li);
+  });
+  window.scrollTo(0, 0);
+}
+
+$('start').addEventListener('click', start);
+$('again').addEventListener('click', start);
+$('next').addEventListener('click', () => { if (i === qs.length - 1) finish(); else { i++; show(); } });
+document.addEventListener('keydown', (e) => {
+  if (mode !== 'game') return;
+  if (!locked && /^[1-4]$/.test(e.key)) answer(Number(e.key) - 1);
+  else if (locked && e.key === 'Enter' && document.activeElement !== $('next')) $('next').click();
+});
+
+renderFicha();
+</script>
+</body>
+</html>
